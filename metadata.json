@@ -1,0 +1,10 @@
+{
+  "name": "Remix Doux Gouts RESTO 2",
+  "description": "L'excellence de la cuisine fusion et braise à Bingerville : Commande en ligne, Panier dynamique et Paiement sécurisé (Stripe, Wave, Mobile Money & Espèces).",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
