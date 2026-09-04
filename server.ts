@@ -40,6 +40,12 @@ async function startServer() {
   // Mount API Router FIRST
   app.use('/api', apiRouter);
 
+  // Serve sitemap.xml explicitly (before Vite/SPA fallback) for SEO
+  app.get('/sitemap.xml', (_req, res) => {
+    res.set('Content-Type', 'application/xml; charset=utf-8');
+    res.sendFile(path.join(process.cwd(), 'public', 'sitemap.xml'));
+  });
+
   // Vite middleware for development vs static build in production
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
