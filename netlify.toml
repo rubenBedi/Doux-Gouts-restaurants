@@ -1,0 +1,5 @@
+[[redirects]]
+  from = "/*"
+  to = "https://doux-gouts-r3gjr.bolt.host/:splat"
+  status = 301
+  force = true
