@@ -92,9 +92,9 @@ const MainApp: React.FC = () => {
     return () => clearInterval(timer);
   }, [restaurantMedia.length]);
 
-  // Quick 1-click add to cart or open customization if options exist
+  // Quick 1-click add to cart or open customization for kits and options
   const handleQuickAdd = (item: MenuItem) => {
-    if (item.availableOptions && item.availableOptions.length > 0) {
+    if (item.category === 'Kits' || (item.availableOptions && item.availableOptions.length > 0)) {
       setCustomizingItem(item);
     } else {
       addItem(item, [], 1);
@@ -161,7 +161,7 @@ const MainApp: React.FC = () => {
             </h1>
 
             <p className="text-white/90 text-sm sm:text-base md:text-lg max-w-2xl mx-auto font-medium mb-10 drop-shadow-sm">
-              Commandez en ligne vos pizzas croustillantes, chawarmas généreux et spécialités ivoiriennes. Livraison express à Bingerville & Abidjan.
+              Commandez en ligne vos pizzas croustillantes, chawarmas savoureux et nos offres kits exclusifs. Livraison express à Bingerville & Abidjan.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
@@ -202,7 +202,7 @@ const MainApp: React.FC = () => {
             </div>
             <div>
               <div className="font-black text-xs uppercase text-gray-900">Paiement 100% Sécurisé</div>
-              <div className="text-[11px] text-gray-500">Wave Côte d'Ivoire (Scan QR & 0% Frais)</div>
+              <div className="text-[11px] text-gray-500">Wave Côte d'Ivoire (Paiement 1 Clic & 0% Frais)</div>
             </div>
           </div>
 
@@ -234,7 +234,7 @@ const MainApp: React.FC = () => {
             </h2>
             <p className="text-gray-600 leading-relaxed mb-8 text-base">
               Bienvenue chez Doux Goûts Resto, l'adresse incontournable de Bingerville pour les amoureux de saveurs authentiques. 
-              Nous marions le savoir-faire des pizzas au feu de bois, des chawarmas croustillants et des spécialités ivoiriennes préparés minute avec des ingrédients rigoureusement sélectionnés.
+              Nous marions le savoir-faire des pizzas au feu de bois, des chawarmas fondants et des packs kits économiques préparés minute avec des ingrédients rigoureusement sélectionnés.
             </p>
             <div className="grid grid-cols-2 gap-6">
               <div className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-xs">

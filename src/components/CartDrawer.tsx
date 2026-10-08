@@ -114,7 +114,7 @@ export const CartDrawer: React.FC = () => {
                 </div>
                 <h4 className="font-black text-gray-700 text-lg uppercase mb-1">Votre panier est vide</h4>
                 <p className="text-xs text-gray-400 max-w-xs mb-6">
-                  Découvrez nos délicieuses pizzas au feu de bois, chawarmas et spécialités locales.
+                  Découvrez nos délicieuses pizzas au feu de bois, chawarmas et nos packs kits gourmands.
                 </p>
                 <button
                   onClick={closeCart}
@@ -234,13 +234,8 @@ export const CartDrawer: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="flex justify-between text-gray-400 text-[10px]">
-                  <span>TVA (18% UEMOA incluse)</span>
-                  <span>{formatPrice(vatAmount)}</span>
-                </div>
-
                 <div className="flex justify-between items-center text-base font-black text-gray-900 pt-2 border-t border-gray-200">
-                  <span className="uppercase tracking-tight">Total TTC à payer</span>
+                  <span className="uppercase tracking-tight">Total à payer</span>
                   <span className="text-[#fa8107] text-xl font-black">{formatPrice(total)}</span>
                 </div>
               </div>

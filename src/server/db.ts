@@ -108,15 +108,26 @@ export function initDatabase() {
   // Clear promo codes table
   db.exec('DELETE FROM promo_codes');
 
-  // Seed inventory for menu items if empty
-  const countInventory = db.prepare('SELECT count(*) as count FROM inventory').get() as { count: number };
-  if (countInventory.count === 0) {
-    const insertInv = db.prepare(`
-      INSERT INTO inventory (id, menu_item_id, name, stock_quantity, is_in_stock, low_stock_threshold, category)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    const insertInvMany = db.transaction(() => {
-      for (const item of ALL_MENU_ITEMS) {
+  // Sync inventory for menu items with ALL_MENU_ITEMS
+  const existingInv = db.prepare('SELECT menu_item_id FROM inventory').all() as { menu_item_id: string }[];
+  const validIds = new Set(ALL_MENU_ITEMS.map(i => i.id));
+  
+  // Clean up obsolete menu items (e.g. Manaïché, Plats locaux)
+  for (const inv of existingInv) {
+    if (!validIds.has(inv.menu_item_id)) {
+      db.prepare('DELETE FROM inventory WHERE menu_item_id = ?').run(inv.menu_item_id);
+    }
+  }
+
+  // Insert any new or missing items (NOS KITS, etc.)
+  const existingSet = new Set((db.prepare('SELECT menu_item_id FROM inventory').all() as { menu_item_id: string }[]).map(r => r.menu_item_id));
+  const insertInv = db.prepare(`
+    INSERT OR REPLACE INTO inventory (id, menu_item_id, name, stock_quantity, is_in_stock, low_stock_threshold, category)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insertInvMany = db.transaction(() => {
+    for (const item of ALL_MENU_ITEMS) {
+      if (!existingSet.has(item.id)) {
         insertInv.run(
           `inv_${item.id}`,
           item.id,
@@ -127,9 +138,9 @@ export function initDatabase() {
           item.category
         );
       }
-    });
-    insertInvMany();
-  }
+    }
+  });
+  insertInvMany();
 
   // Seed 2 initial sample orders for rich admin dashboard experience if empty
   const countOrders = db.prepare('SELECT count(*) as count FROM orders').get() as { count: number };
@@ -140,6 +151,7 @@ export function initDatabase() {
       createdAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
       updatedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
       customer: {
+        fullName: 'Kouassi Jean-Marc',
         firstName: 'Kouassi',
         lastName: 'Jean-Marc',
         email: 'jm.kouassi@gmail.com',
@@ -153,7 +165,7 @@ export function initDatabase() {
       items: [
         {
           cartItemId: 'item_1',
-          menuItem: ALL_MENU_ITEMS[0], // Peperoni
+          menuItem: ALL_MENU_ITEMS[0], // 2 Pizzas Kit
           quantity: 2,
           selectedOptions: [
             { groupId: 'pizza_extras', groupName: 'Suppléments', optionId: 'extra_cheese', optionName: 'Double Mozzarella', extraPrice: 1000 }
@@ -171,19 +183,19 @@ export function initDatabase() {
         }
       ],
       subtotal: 13000,
-      deliveryFee: 1000,
+      deliveryFee: 2000,
       deliveryZone: {
         id: 'bingerville_centre',
         name: 'Bingerville Centre / Cité Addoha',
         description: 'Livraison express moto à Bingerville',
-        fee: 1000,
+        fee: 2000,
         estimatedMinutes: '25-35 min'
       },
       discountAmount: 0,
       vatAmount: 2340,
-      tipAmount: 500,
-      cutleryNeeded: true,
-      total: 14500,
+      tipAmount: 0,
+      cutleryNeeded: false,
+      total: 15000,
       paymentMethod: 'wave_ci',
       paymentStatus: 'succeeded',
       orderStatus: 'in_delivery',
@@ -197,6 +209,7 @@ export function initDatabase() {
       createdAt: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
       updatedAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
       customer: {
+        fullName: 'Aïcha Touré',
         firstName: 'Aïcha',
         lastName: 'Touré',
         email: 'aicha.toure@yahoo.fr',
@@ -209,7 +222,7 @@ export function initDatabase() {
       items: [
         {
           cartItemId: 'item_3',
-          menuItem: ALL_MENU_ITEMS.find(i => i.id === 'l1') || ALL_MENU_ITEMS[0], // Tchep Viande
+          menuItem: ALL_MENU_ITEMS.find(i => i.id === 'kit_pc_1') || ALL_MENU_ITEMS[0], // 1 Pizza + 2 Chawarmas
           quantity: 2,
           selectedOptions: [],
           unitPrice: 4500,

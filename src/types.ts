@@ -9,7 +9,7 @@ export interface MenuItem {
   description: string;
   price: string; // e.g. "4000 F"
   priceNumeric: number; // e.g. 4000
-  category: 'Pizza' | 'Chawarma' | 'Manaïche' | 'Plat Local' | 'Panini';
+  category: 'Kits' | 'Pizza' | 'Chawarma' | 'Panini';
   image: string;
   popular?: boolean;
   preparationTime?: number; // minutes
@@ -59,12 +59,13 @@ export interface DeliveryZone {
 }
 
 export interface CustomerDetails {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  address: string;
-  district: string;
+  fullName: string; // Nom & Prénom combiné
+  phone: string; // Numéro de téléphone
+  address: string; // Adresse de livraison
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  district?: string;
   landmark?: string;
   deliveryNotes?: string;
   isBillingSameAsDelivery?: boolean;
@@ -100,8 +101,8 @@ export interface Order {
   discountAmount: number;
   promoCode?: string;
   vatAmount: number; // TVA 18%
-  tipAmount: number;
-  cutleryNeeded: boolean;
+  tipAmount?: number;
+  cutleryNeeded?: boolean;
   total: number;
   paymentMethod: PaymentMethodType;
   paymentStatus: PaymentStatus;

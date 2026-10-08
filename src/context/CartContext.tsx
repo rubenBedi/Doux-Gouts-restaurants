@@ -89,11 +89,12 @@ const RECENT_ORDERS_KEY = 'doux_gouts_recent_orders';
 const CUSTOMER_STORAGE_KEY = 'doux_gouts_customer';
 
 const INITIAL_CUSTOMER: CustomerDetails = {
+  fullName: '',
+  phone: '',
+  address: '',
   firstName: '',
   lastName: '',
   email: '',
-  phone: '',
-  address: '',
   district: 'Bingerville',
   landmark: '',
   deliveryNotes: '',
