@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, 
@@ -60,11 +60,11 @@ export const CheckoutModal: React.FC = () => {
   const [wavePaidConfirmed, setWavePaidConfirmed] = useState(false);
   const [copiedNumber, setCopiedNumber] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedWhatsappText, setCopiedWhatsappText] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
-
-  if (!isCheckoutOpen) return null;
+  const [orderRef, setOrderRef] = useState<string>(() => `DG-${Math.floor(1000 + Math.random() * 9000)}`);
 
   // Mode change handler
   const handleModeChange = (takeaway: boolean) => {
@@ -117,7 +117,7 @@ export const CheckoutModal: React.FC = () => {
   };
 
   // Construction du message WhatsApp récapitulatif
-  const buildWhatsAppMessage = (orderRef: string) => {
+  const buildWhatsAppMessage = (ref: string) => {
     const fullName = (customer.fullName || `${customer.firstName || ''} ${customer.lastName || ''}`).trim();
     const itemsList = cartItems.map(item => {
       const optionsText = item.selectedOptions && item.selectedOptions.length > 0
@@ -131,7 +131,7 @@ export const CheckoutModal: React.FC = () => {
       : `${customer.address} (${deliveryZone.name})`;
 
     return `*NOUVELLE COMMANDE DOUX GOÛTS* 🍕
-Réf : #${orderRef}
+Réf : #${ref}
 ------------------------------------
 👤 *Nom & Prénom :* ${fullName}
 📞 *Numéro de téléphone :* ${customer.phone}
@@ -146,13 +146,43 @@ ${itemsList}
 ✅ *Mention : Paiement effectué via Wave*`;
   };
 
-  // ÉTAPE 2 : Envoyer la commande sur WhatsApp
-  const handleSendWhatsAppOrder = async () => {
+  // Message WhatsApp formaté pour la commande courante
+  const whatsappMessage = useMemo(() => {
+    return buildWhatsAppMessage(orderRef);
+  }, [orderRef, customer, cartItems, deliveryFee, total, isTakeaway, deliveryZone]);
+
+  // URL universelle API WhatsApp (déclenche immédiatement l'app WhatsApp sur mobile ou WhatsApp Web sur ordinateur sans blocage popup)
+  const whatsappWebUrl = useMemo(() => {
+    return `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${encodeURIComponent(whatsappMessage)}`;
+  }, [whatsappMessage]);
+
+  // URL wa.me alternative
+  const waMeUrl = useMemo(() => {
+    return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(whatsappMessage)}`;
+  }, [whatsappMessage]);
+
+  // Deep-link direct vers l'application WhatsApp mobile
+  const whatsappAppUrl = useMemo(() => {
+    return `whatsapp://send?phone=${WHATSAPP_NUMBER}&text=${encodeURIComponent(whatsappMessage)}`;
+  }, [whatsappMessage]);
+
+  // Copier le message WhatsApp
+  const handleCopyWhatsAppMessage = () => {
+    try {
+      navigator.clipboard.writeText(whatsappMessage);
+      setCopiedWhatsappText(true);
+      setTimeout(() => setCopiedWhatsappText(false), 3000);
+    } catch (e) {
+      console.warn('Erreur lors de la copie du message:', e);
+    }
+  };
+
+  // ÉTAPE 2 : Traitement de la commande et validation
+  const handleSendWhatsAppOrder = () => {
     setIsSubmitting(true);
     setErrorMessage(null);
 
     const fullName = (customer.fullName || `${customer.firstName || ''} ${customer.lastName || ''}`).trim();
-    const orderRef = `DG-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const normalizedCustomer = {
       fullName,
@@ -183,61 +213,48 @@ ${itemsList}
       notes: 'Paiement effectué via Wave - Transmis par WhatsApp'
     };
 
-    try {
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderPayload)
-      });
+    const localOrder: Order = {
+      id: `ord_${Date.now()}`,
+      reference: orderRef,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      customer: normalizedCustomer,
+      items: cartItems,
+      subtotal,
+      deliveryFee,
+      deliveryZone,
+      discountAmount: 0,
+      vatAmount,
+      total,
+      paymentMethod: 'wave_ci',
+      paymentStatus: 'succeeded',
+      orderStatus: 'confirmed',
+      estimatedDeliveryTime: deliveryZone.estimatedMinutes
+    };
 
-      let savedOrder: Order;
+    // Enregistrer localement et basculer instantanément sur l'écran de succès
+    setCompletedOrder(localOrder);
+    addRecentOrderRef(localOrder.reference);
+    clearCart();
+    setScreen('success');
+    setIsSubmitting(false);
+
+    // Sauvegarde en base de données en tâche de fond (keepalive) sans bloquer l'interface
+    fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(orderPayload),
+      keepalive: true
+    }).then(async (res) => {
       if (res.ok) {
         const data = await res.json();
-        savedOrder = data.order;
-      } else {
-        // Fallback local
-        savedOrder = {
-          id: `ord_${Date.now()}`,
-          reference: orderRef,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          customer: normalizedCustomer,
-          items: cartItems,
-          subtotal,
-          deliveryFee,
-          deliveryZone,
-          discountAmount: 0,
-          vatAmount,
-          total,
-          paymentMethod: 'wave_ci',
-          paymentStatus: 'succeeded',
-          orderStatus: 'confirmed',
-          estimatedDeliveryTime: deliveryZone.estimatedMinutes
-        };
+        if (data?.order) {
+          setCompletedOrder(data.order);
+        }
       }
-
-      setCompletedOrder(savedOrder);
-      addRecentOrderRef(savedOrder.reference);
-
-      // Générer l'URL WhatsApp avec le récapitulatif
-      const message = buildWhatsAppMessage(orderRef);
-      const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
-      
-      // Ouvrir WhatsApp
-      window.open(whatsappUrl, '_blank');
-
-      // Vider le panier et passer à l'écran de succès
-      clearCart();
-      setScreen('success');
-    } catch (err: any) {
-      console.error('Erreur commande:', err);
-      // Même en cas d'erreur réseau, on génère le WhatsApp pour le client
-      const message = buildWhatsAppMessage(orderRef);
-      window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, '_blank');
-      setScreen('success');
-    } finally {
-      setIsSubmitting(false);
-    }
+    }).catch(err => {
+      console.warn('Sauvegarde commande serveur différée:', err);
+    });
   };
 
   const handleOpenLiveTracking = () => {
@@ -249,6 +266,8 @@ ${itemsList}
   };
 
   const currentFullName = customer.fullName || `${customer.firstName || ''} ${customer.lastName || ''}`.trim();
+
+  if (!isCheckoutOpen) return null;
 
   return (
     <AnimatePresence>
@@ -669,16 +688,48 @@ ${itemsList}
                   </div>
 
                   {/* LE BOUTON OFFICIEL WHATSAPP */}
-                  <button
-                    type="button"
+                  <a
+                    href={whatsappWebUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     onClick={handleSendWhatsAppOrder}
-                    disabled={isSubmitting}
-                    className="w-full bg-[#25D366] hover:bg-[#20ba59] text-white py-4 px-6 rounded-2xl font-black text-sm uppercase tracking-wider shadow-xl shadow-green-600/25 flex items-center justify-center gap-3 transition-all hover:scale-[1.01] cursor-pointer disabled:opacity-60"
+                    className="w-full bg-[#25D366] hover:bg-[#20ba59] active:scale-[0.98] text-white py-4 px-6 rounded-2xl font-black text-sm uppercase tracking-wider shadow-xl shadow-green-600/25 flex items-center justify-center gap-3 transition-all hover:scale-[1.01] cursor-pointer text-center no-underline select-none"
                     id="btn-send-order-whatsapp"
                   >
-                    <MessageCircle size={22} className="fill-white" />
-                    <span>{isSubmitting ? 'Préparation...' : 'Envoyer la commande sur WhatsApp'}</span>
-                  </button>
+                    <MessageCircle size={22} className="fill-white shrink-0" />
+                    <span>Envoyer la commande sur WhatsApp</span>
+                  </a>
+
+                  {/* Options d'assistance si WhatsApp ne s'ouvre pas automatiquement */}
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1 text-[11px]">
+                    <a
+                      href={whatsappAppUrl}
+                      onClick={handleSendWhatsAppOrder}
+                      className="bg-emerald-100/90 hover:bg-emerald-200 text-emerald-800 font-bold px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1"
+                      title="Ouvre directement l'application WhatsApp"
+                    >
+                      <Send size={12} />
+                      <span>Ouvrir l'application directe</span>
+                    </a>
+                    <a
+                      href={waMeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={handleSendWhatsAppOrder}
+                      className="bg-emerald-100/90 hover:bg-emerald-200 text-emerald-800 font-bold px-3 py-1.5 rounded-xl transition-colors"
+                      title="Lien officiel wa.me"
+                    >
+                      Lien wa.me
+                    </a>
+                    <button
+                      type="button"
+                      onClick={handleCopyWhatsAppMessage}
+                      className="bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 font-bold px-3 py-1.5 rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                    >
+                      <Copy size={12} />
+                      <span>{copiedWhatsappText ? '✅ Copié !' : 'Copier le message'}</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Bouton Retour vers le formulaire */}
@@ -740,6 +791,50 @@ ${itemsList}
                     </div>
                   </div>
                 )}
+
+                {/* Bloc WhatsApp direct sur l'écran de succès pour relance ou ré-envoi */}
+                <div className="bg-emerald-50/90 p-5 rounded-2xl border-2 border-emerald-300 text-left max-w-md mx-auto space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-emerald-900 font-black text-xs uppercase tracking-wider">
+                      <MessageCircle size={18} className="text-[#25D366] fill-[#25D366]" />
+                      Finaliser l'envoi WhatsApp
+                    </span>
+                    <span className="text-[10px] bg-emerald-200/80 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                      Cuisine connectée
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    Si l'application WhatsApp ne s'est pas ouverte automatiquement sur votre appareil, cliquez ci-dessous pour transmettre le message :
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <a
+                      href={whatsappWebUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 bg-[#25D366] hover:bg-[#20ba59] active:scale-[0.98] text-white py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md shadow-green-600/20 transition-transform hover:scale-[1.02] text-center"
+                    >
+                      <MessageCircle size={16} className="fill-white" />
+                      <span>Ouvrir WhatsApp</span>
+                    </a>
+                    <a
+                      href={whatsappAppUrl}
+                      className="bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors text-center"
+                    >
+                      <Send size={14} />
+                      <span>App Mobile</span>
+                    </a>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-emerald-200/60 text-[11px]">
+                    <span className="text-gray-600">WhatsApp : <strong className="text-gray-900">{RESTAURANT_PHONE}</strong></span>
+                    <button
+                      type="button"
+                      onClick={handleCopyWhatsAppMessage}
+                      className="text-emerald-700 hover:text-emerald-900 font-bold underline cursor-pointer"
+                    >
+                      {copiedWhatsappText ? '✅ Message copié !' : 'Copier le message'}
+                    </button>
+                  </div>
+                </div>
 
                 <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center max-w-md mx-auto">
                   <button
